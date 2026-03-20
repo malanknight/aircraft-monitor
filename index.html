@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Aircraft Monitor</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f3f4f6;color:#111;font-size:14px}
+input,select,button{font-family:inherit;font-size:13px}
+select{padding:5px 8px;border:0.5px solid #ccc;border-radius:6px;background:#fff;cursor:pointer}
+button{padding:6px 14px;border:0.5px solid #ccc;border-radius:6px;background:#fff;cursor:pointer}
+button:hover{background:#f0f0f0}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useMemo}=React;
+const REPO_RAW="https://raw.githubusercontent.com/malanknight/aircraft-monitor/main/listings_raw.json";
+const SOURCES=[
+  {id:"controller",name:"Controller",url:"https://www.controller.com/listings/aircraft/for-sale/list/category/piston-single-engine-aircraft",color:"#185FA5",bg:"#E6F1FB"},
+  {id:"tradeaplane",name:"Trade-A-Plane",url:"https://www.trade-a-plane.com/search?category_level1=Single+Engine+Piston&make=PIPER&model=PA-28-181",color:"#854F0B",bg:"#FAEEDA"},
+  {id:"aopa",name:"AOPA",url:"https://www.aopa.org/go/marketplace/search",color:"#3B6D11",bg:"#EAF3DE"},
+  {id:"barnstormers",name:"Barnstormers",url:"https://www.barnstormers.com/classified_search.php?searchcategory=1&make=Piper&model=PA-28-181",color:"#993C1D",bg:"#FAECE7"},
+  {id:"gmax",name:"GMAX",url:"https://www.gmaxaeronautics.com/",color:"#534AB7",bg:"#EEEDFE"},
+];
+const COND={1:"Fair",2:"Good",3:"Excellent"};
+const COND_COLOR={1:{bg:"#FAEEDA",color:"#633806",border:"#FAC775"},2:{bg:"#E6F1FB",color:"#0C447C",border:"#B5D4F4"},3:{bg:"#EAF3DE",color:"#27500A",border:"#97C459"}};
+const DEFAULT_TBO=2000;
+function daysSince(d){if(!d)return 0;return Math.floor((Date.now()-new Date(d).getTime())/86400000)}
+function costTo1000hr(price,smoh,engineType){if(!price||!smoh)return price||0;const oc=engineType?.includes("Factory")?28000:18000;const h=Math.max(1000-smoh,0);if(h<=0)return price;return Math.round(price+(oc/DEFAULT_TBO)*h)}
+function annualDaysRemaining(d){if(!d)return null;const exp=new Date(d);exp.setFullYear(exp.getFullYear()+1);return Math.floor((exp-Date.now())/86400000)}
+function isPriceReduced(ph){return ph&&ph.length>1&&ph[ph.length-1].price<ph[0].price}
+function priceDropPct(ph){if(!ph||ph.length<2)return 0;return Math.round(((ph[0].price-ph[ph.length-1].price)/ph[0].price)*100)}
+function isStale(d){return daysSince(d)>30}
+function scoreEngine(smoh,engineType){if(!smoh)return 25;let s=smoh>=400&&smoh<=900?40:smoh>=200&&smoh<400?25:smoh>900&&smoh<=1100?20:smoh>1100?5:28;if(engineType?.includes("Factory"))s+=10;else if(engineType?.includes("Field"))s+=6;return Math.min(s,50)}
+function scoreAvionics(av){if(!av)return 0;let s=0;if(!av.vacuum)s+=15;if(av.gtn?.includes("GTN 6")||av.gtn?.includes("GTN 7"))s+=15;else if(av.gtn?.includes("GTN 4")||av.gtn?.includes("Avidyne")||av.gtn?.includes("IFD"))s+=10;else if(av.ifr)s+=5;if(av.autopilot)s+=8;if(av.g5||av.gtn?.includes("Aspen")||av.gtn?.includes("EFD"))s+=7;if(av.engMonitor)s+=5;return Math.min(s,50)}
+function scorePrice(price,tier){if(tier===1){if(price<=85000)return 20;if(price<=95000)return 15;if(price<=105000)return 10;return 3}if(price<=65000)return 20;if(price<=75000)return 12;return 5}
+function scoreLocation(dist){return dist<=50?5:dist<=200?4:dist<=600?2:1}
+function scoreAccident(na){return na?5:0}
+function computeScore(l){const engine=scoreEngine(l.smoh,l.engineType);const avionics=scoreAvionics(l.avionics);const price=scorePrice(l.price,l.tier);const location=scoreLocation(l.distanceFromBase||9999);const accident=scoreAccident(l.noAccident);const tierBonus=l.tier===1?10:0;return{total:Math.min(engine+avionics+price+location+accident+tierBonus,100),engine,avionics,price,location,accident,tierBonus}}
+
+function ScoreRing({score,size=54}){const r=21,cx=size/2,cy=size/2,circ=2*Math.PI*r,fill=circ*(score/100);const[stroke,tc,label]=score>=85?["#1D9E75","#0F6E56","Top pick"]:score>=70?["#378ADD","#185FA5","Strong"]:score>=55?["#EF9F27","#854F0B","Consider"]:["#B4B2A9","#5F5E5A","Marginal"];return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,flexShrink:0}}><svg width={size} height={size} style={{transform:"rotate(-90deg)",display:"block"}}><circle cx={cx} cy={cy} r={r} fill="none" stroke="#E8E8E8" strokeWidth={4}/><circle cx={cx} cy={cy} r={r} fill="none" stroke={stroke} strokeWidth={4} strokeDasharray={`${fill} ${circ-fill}`} strokeLinecap="round"/><text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="middle" style={{transform:`rotate(90deg)`,transformOrigin:`${cx}px ${cy}px`,fontSize:14,fontWeight:500,fill:tc}}>{score}</text></svg><span style={{fontSize:10,fontWeight:500,color:tc,whiteSpace:"nowrap"}}>{label}</span></div>)}
+function MiniBar({value,max,color}){const pct=Math.min(Math.round((value/max)*100),100);const map={green:"#1D9E75",blue:"#378ADD",amber:"#EF9F27",teal:"#1D9E75",gray:"#B4B2A9"};return(<div style={{display:"flex",alignItems:"center",gap:6}}><div style={{flex:1,height:5,background:"#E8E8E8",borderRadius:3}}><div style={{width:`${pct}%`,height:"100%",background:map[color],borderRadius:3}}/></div><span style={{fontSize:11,color:"#666",minWidth:18,textAlign:"right"}}>{value}</span></div>)}
+const AV_BADGES=[{key:"noVacuum",label:()=>"Electric",check:av=>!av?.vacuum,isHi:()=>true,hi:{bg:"#EAF3DE",color:"#27500A",border:"#639922"},lo:{bg:"transparent",color:"#aaa",border:"#ddd"}},{key:"gtn",label:av=>av?.gtn||"Basic nav",check:av=>!!av?.gtn,isHi:av=>av?.gtn?.includes("GTN 6")||av?.gtn?.includes("GTN 7")||av?.gtn?.includes("IFD")||av?.gtn?.includes("Aspen"),hi:{bg:"#E6F1FB",color:"#0C447C",border:"#85B7EB"},lo:{bg:"transparent",color:"#aaa",border:"#ddd"}},{key:"ap",label:()=>"Autopilot",check:av=>av?.autopilot,isHi:av=>av?.autopilot,hi:{bg:"#EEEDFE",color:"#3C3489",border:"#AFA9EC"},lo:{bg:"transparent",color:"#aaa",border:"#ddd"}},{key:"g5",label:()=>"G5/EFD",check:av=>av?.g5,isHi:av=>av?.g5,hi:{bg:"#E6F1FB",color:"#0C447C",border:"#B5D4F4"},lo:{bg:"transparent",color:"#aaa",border:"#ddd"}},{key:"em",label:()=>"Eng mon",check:av=>av?.engMonitor,isHi:av=>av?.engMonitor,hi:{bg:"#FAEEDA",color:"#633806",border:"#FAC775"},lo:{bg:"transparent",color:"#aaa",border:"#ddd"}}];
+function AvBadge({def,avionics}){const active=def.check(avionics),isHi=def.isHi?def.isHi(avionics):active,s=isHi?def.hi:def.lo;return<span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:s.bg,color:s.color,border:`0.5px solid ${s.border}`,fontWeight:active?500:400,opacity:active?1:0.5}}>{typeof def.label==="function"?def.label(avionics):def.label}</span>}
+function AccidentBadge({noAccident}){return noAccident===true?<span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:"#EAF3DE",color:"#27500A",border:"0.5px solid #97C459",fontWeight:500}}>Clean history</span>:noAccident===false?<span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:"#FCEBEB",color:"#791F1F",border:"0.5px solid #F09595",fontWeight:500}}>Damage history</span>:<span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:"#F1EFE8",color:"#888",border:"0.5px solid #ddd"}}>History unknown</span>}
+function TierChip({tier}){return tier===1?<span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,background:"#E6F1FB",color:"#0C447C",border:"0.5px solid #B5D4F4"}}>Tier 1</span>:<span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,background:"#F1EFE8",color:"#444",border:"0.5px solid #D3D1C7"}}>Tier 2</span>}
+function SourceChip({id}){const s=SOURCES.find(x=>x.id===id);if(!s)return null;return<span style={{fontSize:10,fontWeight:500,padding:"2px 8px",borderRadius:20,background:s.bg,color:s.color,border:`0.5px solid ${s.color}50`}}>{s.name}</span>}
+
+function ListingCard({listing,expanded,onToggle,isDuplicate}){
+  const sc=computeScore(listing);
+  const leftColor=listing.tier===1?"#378ADD":"#B4B2A9";
+  const smohColor=listing.smoh>=400&&listing.smoh<=900?"#1D9E75":listing.smoh>1100?"#A32D2D":"#555";
+  const annualDays=annualDaysRemaining(listing.annualDate);
+  const stale=isStale(listing.dateFound);
+  const priceDown=isPriceReduced(listing.priceHistory);
+  const dropPct=priceDropPct(listing.priceHistory);
+  const c1000=costTo1000hr(listing.price,listing.smoh,listing.engineType);
+  const age=daysSince(listing.dateFound);
+  return(
+    <div style={{background:"#fff",border:`0.5px solid ${isDuplicate?"#F09595":"#e0e0e0"}`,borderRadius:10,overflow:"hidden",borderLeft:`3px solid ${leftColor}`,marginBottom:8}}>
+      {isDuplicate&&<div style={{background:"#FCEBEB",borderBottom:"0.5px solid #F09595",padding:"5px 16px",fontSize:11,color:"#791F1F",fontWeight:500}}>Duplicate — N{listing.nNumber} also listed on another source.</div>}
+      <div style={{padding:"13px 16px",cursor:"pointer",userSelect:"none"}} onClick={onToggle}>
+        <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+          <ScoreRing score={sc.total}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:5}}>
+              <span style={{fontWeight:500,fontSize:15}}>{listing.year} {listing.model}</span>
+              <TierChip tier={listing.tier}/>
+              <SourceChip id={listing.source}/>
+              {listing.nNumber&&<span style={{fontSize:10,color:"#888",fontFamily:"monospace"}}>N{listing.nNumber}</span>}
+              {priceDown&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:"#EAF3DE",color:"#0F6E56",border:"0.5px solid #5DCAA5",fontWeight:500}}>Price -{dropPct}%</span>}
+              {stale&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:"#FAEEDA",color:"#633806",border:"0.5px solid #FAC775",fontWeight:500}}>Listed {age}d ago</span>}
+            </div>
+            <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:7,alignItems:"baseline"}}>
+              <span style={{fontSize:14,fontWeight:500,color:"#185FA5"}}>${listing.price?.toLocaleString()||"?"}</span>
+              {c1000>0&&<span style={{fontSize:12,color:"#888"}}>~${c1000.toLocaleString()} to 1000hr</span>}
+              {listing.ttaf&&<span style={{fontSize:13,color:"#555"}}>{listing.ttaf.toLocaleString()} TT</span>}
+              {listing.smoh&&<span style={{fontSize:13,color:smohColor,fontWeight:listing.smoh>=400&&listing.smoh<=900?500:400}}>{listing.smoh} SMOH</span>}
+              {listing.engineType&&<span style={{fontSize:13,color:"#888"}}>{listing.engineType}</span>}
+              {listing.locationName&&<span style={{fontSize:13,color:listing.distanceFromBase===0?"#1D9E75":"#555"}}>{listing.locationName}{listing.distanceFromBase===0?" (local)":listing.distanceFromBase<9999?` ~${listing.distanceFromBase}nm`:""}</span>}
+            </div>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center",marginBottom:6}}>
+              {AV_BADGES.map(d=><AvBadge key={d.key} def={d} avionics={listing.avionics}/>)}
+              <AccidentBadge noAccident={listing.noAccident}/>
+            </div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+              {listing.paintCondition&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4}}><span style={{color:"#888"}}>Paint:</span><span style={{borderRadius:20,padding:"1px 7px",fontSize:11,fontWeight:500,background:COND_COLOR[listing.paintCondition]?.bg,color:COND_COLOR[listing.paintCondition]?.color,border:`0.5px solid ${COND_COLOR[listing.paintCondition]?.border}`}}>{COND[listing.paintCondition]}</span></span>}
+              {listing.interiorCondition&&<span style={{fontSize:11,display:"flex",alignItems:"center",gap:4}}><span style={{color:"#888"}}>Interior:</span><span style={{borderRadius:20,padding:"1px 7px",fontSize:11,fontWeight:500,background:COND_COLOR[listing.interiorCondition]?.bg,color:COND_COLOR[listing.interiorCondition]?.color,border:`0.5px solid ${COND_COLOR[listing.interiorCondition]?.border}`}}>{COND[listing.interiorCondition]}</span></span>}
+              {annualDays!==null&&(annualDays<0?<span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:"#FCEBEB",color:"#791F1F",border:"0.5px solid #F09595",fontWeight:500}}>Annual expired</span>:annualDays<=90?<span style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:"#FAEEDA",color:"#633806",border:"0.5px solid #FAC775",fontWeight:500}}>Annual due in {annualDays}d</span>:<span style={{fontSize:11,color:"#888"}}>Annual: {annualDays}d remaining</span>)}
+            </div>
+          </div>
+          <span style={{color:"#aaa",fontSize:11,alignSelf:"center",flexShrink:0}}>{expanded?"▲":"▼"}</span>
+        </div>
+      </div>
+      {expanded&&(
+        <div style={{borderTop:"0.5px solid #eee",padding:"14px 16px",background:"#fafafa"}}>
+          {listing.notes&&<p style={{fontSize:13,color:"#555",margin:"0 0 12px",lineHeight:1.65}}>{listing.notes}</p>}
+          {listing.priceHistory?.length>1&&(
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:"#888",marginBottom:5}}>Price history</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {listing.priceHistory.map((p,i)=><span key={i} style={{fontSize:12,padding:"2px 10px",borderRadius:20,background:i===listing.priceHistory.length-1?"#EAF3DE":"#fff",color:i===listing.priceHistory.length-1?"#27500A":"#555",border:`0.5px solid ${i===listing.priceHistory.length-1?"#97C459":"#ddd"}`}}>${p.price.toLocaleString()} <span style={{opacity:0.6}}>{p.date}</span></span>)}
+              </div>
+            </div>
+          )}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"10px 20px",marginBottom:14}}>
+            {[{label:"Engine (50 max)",value:sc.engine,max:50,color:"green"},{label:"Avionics (50 max)",value:sc.avionics,max:50,color:"blue"},{label:"Price (20 max)",value:sc.price,max:20,color:"amber"},{label:"Location (5 max)",value:sc.location,max:5,color:"teal"},{label:"No accident (5 max)",value:sc.accident,max:5,color:"teal"},{label:"Tier bonus (10 max)",value:sc.tierBonus,max:10,color:"gray"}].map(row=>(
+              <div key={row.label}><div style={{fontSize:11,color:"#888",marginBottom:3}}>{row.label}</div><MiniBar value={row.value} max={row.max} color={row.color}/></div>
+            ))}
+          </div>
+          {listing.url&&<a href={listing.url} target="_blank" rel="noreferrer" style={{fontSize:13,padding:"6px 14px",borderRadius:6,border:"0.5px solid #ccc",textDecoration:"none",background:"#fff",color:"#111"}}>View listing →</a>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App(){
+  const[listings,setListings]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[error,setError]=useState(null);
+  const[lastUpdated,setLastUpdated]=useState(null);
+  const[expandedId,setExpandedId]=useState(null);
+  const[sortBy,setSortBy]=useState("score");
+  const[filterTier,setFilterTier]=useState("all");
+  const[filterSource,setFilterSource]=useState("all");
+  const[filterVacuum,setFilterVacuum]=useState(false);
+  const[filterClean,setFilterClean]=useState(false);
+  const[filterHideStale,setFilterHideStale]=useState(false);
+  const[filterHideDupes,setFilterHideDupes]=useState(false);
+  const[maxPrice,setMaxPrice]=useState(105000);
+  const[activeTab,setActiveTab]=useState("listings");
+
+  const loadData=()=>{
+    setLoading(true);
+    fetch(REPO_RAW+"?t="+Date.now())
+      .then(r=>{if(!r.ok)throw new Error("Not found");return r.json()})
+      .then(data=>{setListings(data.map(l=>({...l,score:computeScore(l).total})));setLastUpdated(new Date().toLocaleTimeString());setLoading(false)})
+      .catch(e=>{setError(e.message);setLoading(false)});
+  };
+  useEffect(()=>{loadData()},[]);
+
+  const dupeNs=useMemo(()=>{const c={};listings.forEach(l=>{if(l.nNumber)c[l.nNumber]=(c[l.nNumber]||0)+1});return new Set(Object.keys(c).filter(n=>c[n]>1))},[listings]);
+  const sorted=useMemo(()=>listings.filter(l=>filterTier==="all"||l.tier===parseInt(filterTier)).filter(l=>filterSource==="all"||l.source===filterSource).filter(l=>!filterVacuum||!l.avionics?.vacuum).filter(l=>!filterClean||l.noAccident===true).filter(l=>!filterHideStale||!isStale(l.dateFound)).filter(l=>{if(!filterHideDupes)return true;const d=dupeNs.has(l.nNumber);if(!d)return true;const s=listings.filter(x=>x.nNumber===l.nNumber);return l.id===s.reduce((b,x)=>x.score>b.score?x:b,s[0]).id}).filter(l=>!l.price||l.price<=maxPrice).sort((a,b)=>sortBy==="score"?b.score-a.score:sortBy==="price"?(a.price||0)-(b.price||0):sortBy==="cost1000"?costTo1000hr(a.price,a.smoh,a.engineType)-costTo1000hr(b.price,b.smoh,b.engineType):sortBy==="smoh"?Math.abs((a.smoh||0)-650)-Math.abs((b.smoh||0)-650):new Date(b.dateFound)-new Date(a.dateFound)),[listings,filterTier,filterSource,filterVacuum,filterClean,filterHideStale,filterHideDupes,maxPrice,sortBy,dupeNs]);
+
+  const topPick=useMemo(()=>[...listings].sort((a,b)=>b.score-a.score)[0],[listings]);
+  const staleCount=listings.filter(l=>isStale(l.dateFound)).length;
+  const dupeCount=listings.filter(l=>dupeNs.has(l.nNumber)).length;
+  const priceReducedCount=listings.filter(l=>isPriceReduced(l.priceHistory)).length;
+  const stats={total:listings.length,tier1:listings.filter(l=>l.tier===1).length,noVacuum:listings.filter(l=>!l.avionics?.vacuum).length,avgScore:listings.length?Math.round(listings.reduce((a,l)=>a+l.score,0)/listings.length):0};
+  const tabSt=t=>({padding:"7px 16px",fontSize:13,cursor:"pointer",fontWeight:activeTab===t?500:400,color:activeTab===t?"#0C447C":"#666",background:activeTab===t?"#E6F1FB":"transparent",border:activeTab===t?"0.5px solid #B5D4F4":"0.5px solid transparent",borderRadius:6});
+
+  return(
+    <div style={{maxWidth:900,margin:"0 auto",padding:"16px 12px"}}>
+      <div style={{background:"#E6F1FB",border:"0.5px solid #B5D4F4",borderRadius:10,padding:"14px 18px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}}>
+        <div>
+          <div style={{fontSize:18,fontWeight:500,color:"#042C53",marginBottom:3}}>Aircraft Listing Monitor</div>
+          <div style={{fontSize:13,color:"#185FA5",marginBottom:8}}>KPNE base · $70–100K budget · 5 sources</div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{SOURCES.map(s=><span key={s.id} style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:s.bg,color:s.color,border:`0.5px solid ${s.color}50`,fontWeight:500}}>{s.name}</span>)}</div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <button onClick={loadData} style={{fontSize:13,padding:"7px 16px",background:"#185FA5",color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontWeight:500}}>{loading?"Loading...":"Refresh"}</button>
+          {lastUpdated&&<div style={{fontSize:11,color:"#378ADD",marginTop:5}}>Updated: {lastUpdated}</div>}
+        </div>
+      </div>
+
+      {loading&&<div style={{padding:40,textAlign:"center",color:"#888"}}>Loading listings...</div>}
+      {error&&!loading&&(
+        <div style={{background:"#FAEEDA",border:"0.5px solid #FAC775",borderRadius:8,padding:"14px 18px",marginBottom:14}}>
+          <div style={{fontWeight:500,color:"#633806",marginBottom:6}}>No listings yet</div>
+          <div style={{fontSize:13,color:"#854F0B",marginBottom:8}}>The scraper hasn't run yet. Trigger a manual run on GitHub Actions and check back shortly.</div>
+          <a href="https://github.com/malanknight/aircraft-monitor/actions" target="_blank" rel="noreferrer" style={{fontSize:13,color:"#185FA5"}}>Open GitHub Actions →</a>
+        </div>
+      )}
+
+      {!loading&&!error&&listings.length>0&&(<>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:10,marginBottom:10}}>
+          {[{label:"Listings found",value:stats.total,accent:"#0C447C",bg:"#E6F1FB"},{label:"Tier 1 aircraft",value:stats.tier1,accent:"#085041",bg:"#E1F5EE"},{label:"Electric avionics",value:stats.noVacuum,accent:"#27500A",bg:"#EAF3DE"},{label:"Avg score",value:`${stats.avgScore}/100`,accent:"#633806",bg:"#FAEEDA"}].map(s=>(
+            <div key={s.label} style={{background:s.bg,borderRadius:8,padding:"11px 14px",border:`0.5px solid ${s.accent}25`}}>
+              <div style={{fontSize:11,color:s.accent,marginBottom:3,opacity:0.8}}>{s.label}</div>
+              <div style={{fontSize:22,fontWeight:500,color:s.accent}}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
+          {topPick&&<div style={{background:"#EAF3DE",border:"0.5px solid #97C459",borderRadius:6,padding:"9px 16px",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,fontWeight:500,color:"#27500A",background:"#C0DD97",padding:"2px 8px",borderRadius:20,flexShrink:0}}>Top pick</span><span style={{fontSize:13,color:"#27500A"}}>{topPick.year} {topPick.model} · ${topPick.price?.toLocaleString()} · Score {topPick.score}/100 · {topPick.locationName}</span></div>}
+          {priceReducedCount>0&&<div style={{background:"#E1F5EE",border:"0.5px solid #5DCAA5",borderRadius:6,padding:"7px 16px",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,fontWeight:500,color:"#0F6E56",background:"#9FE1CB",padding:"2px 8px",borderRadius:20,flexShrink:0}}>Price drops</span><span style={{fontSize:13,color:"#085041"}}>{priceReducedCount} listing{priceReducedCount>1?"s have":" has"} been reduced.</span></div>}
+          {dupeCount>0&&<div style={{background:"#FCEBEB",border:"0.5px solid #F09595",borderRadius:6,padding:"7px 16px",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,fontWeight:500,color:"#791F1F",background:"#F7C1C1",padding:"2px 8px",borderRadius:20,flexShrink:0}}>Duplicates</span><span style={{fontSize:13,color:"#A32D2D"}}>{dupeCount} listings share an N-number.</span></div>}
+          {staleCount>0&&<div style={{background:"#FAEEDA",border:"0.5px solid #FAC775",borderRadius:6,padding:"7px 16px",display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:11,fontWeight:500,color:"#633806",background:"#FAC775",padding:"2px 8px",borderRadius:20,flexShrink:0}}>Stale</span><span style={{fontSize:13,color:"#854F0B"}}>{staleCount} listing{staleCount>1?"s are":" is"} over 30 days old.</span></div>}
+        </div>
+        <div style={{display:"flex",gap:6,marginBottom:14}}>{["listings","sources"].map(t=><button key={t} style={tabSt(t)} onClick={()=>setActiveTab(t)}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>)}</div>
+        {activeTab==="listings"&&(<>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:12,padding:"10px 14px",background:"#f5f5f5",borderRadius:8,border:"0.5px solid #e0e0e0"}}>
+            <select value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="score">Sort: Score</option><option value="price">Sort: Price</option><option value="cost1000">Sort: Cost to 1000hr</option><option value="smoh">Sort: Engine time</option><option value="date">Sort: Date found</option></select>
+            <select value={filterTier} onChange={e=>setFilterTier(e.target.value)}><option value="all">All tiers</option><option value="1">Tier 1 only</option><option value="2">Tier 2 only</option></select>
+            <select value={filterSource} onChange={e=>setFilterSource(e.target.value)}><option value="all">All sources</option>{SOURCES.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
+            <label style={{fontSize:12,display:"flex",alignItems:"center",gap:5,color:"#555",cursor:"pointer"}}><input type="checkbox" checked={filterVacuum} onChange={e=>setFilterVacuum(e.target.checked)}/>Electric only</label>
+            <label style={{fontSize:12,display:"flex",alignItems:"center",gap:5,color:"#555",cursor:"pointer"}}><input type="checkbox" checked={filterClean} onChange={e=>setFilterClean(e.target.checked)}/>Clean history</label>
+            <label style={{fontSize:12,display:"flex",alignItems:"center",gap:5,color:"#555",cursor:"pointer"}}><input type="checkbox" checked={filterHideStale} onChange={e=>setFilterHideStale(e.target.checked)}/>Hide stale</label>
+            <label style={{fontSize:12,display:"flex",alignItems:"center",gap:5,color:"#555",cursor:"pointer"}}><input type="checkbox" checked={filterHideDupes} onChange={e=>setFilterHideDupes(e.target.checked)}/>Hide dupes</label>
+            <label style={{fontSize:12,color:"#555",display:"flex",alignItems:"center",gap:8}}>Max: ${maxPrice.toLocaleString()}<input type="range" min={40000} max={110000} step={5000} value={maxPrice} onChange={e=>setMaxPrice(Number(e.target.value))} style={{width:80}}/></label>
+          </div>
+          <div>{sorted.length===0&&<div style={{padding:32,textAlign:"center",color:"#888"}}>No listings match current filters.</div>}{sorted.map(l=><ListingCard key={l.id} listing={l} expanded={expandedId===l.id} onToggle={()=>setExpandedId(expandedId===l.id?null:l.id)} isDuplicate={dupeNs.has(l.nNumber)&&!filterHideDupes}/>)}</div>
+        </>)}
+        {activeTab==="sources"&&(
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>{SOURCES.map(src=>{const count=listings.filter(l=>l.source===src.id).length;return(<div key={src.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:src.bg,border:`0.5px solid ${src.color}40`,borderRadius:8,padding:"12px 16px"}}><div><div style={{fontWeight:500,fontSize:14,color:src.color}}>{src.name}</div><div style={{fontSize:11,color:src.color,opacity:0.65,marginTop:2}}>{src.url}</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:12,color:src.color}}>{count} listing{count!==1?"s":""}</span><a href={src.url} target="_blank" rel="noreferrer" style={{fontSize:12,padding:"4px 10px",border:`0.5px solid ${src.color}60`,borderRadius:6,color:src.color,textDecoration:"none",background:"#fff",fontWeight:500}}>Open →</a></div></div>)})}</div>
+        )}
+      </>)}
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
