@@ -39,7 +39,7 @@ HEADERS = {
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
+    # Do NOT set Accept-Encoding — let requests handle decompression automatically
     "Connection": "keep-alive",
 }
 
@@ -81,7 +81,9 @@ def get(url: str, session=None, **kwargs) -> Optional[requests.Response]:
     for attempt in range(3):
         try:
             resp = caller.get(url, headers=HEADERS, timeout=20, **kwargs)
-            log.info(f"  HTTP {resp.status_code} {url[:80]}")
+            # Force proper encoding detection
+            resp.encoding = resp.apparent_encoding or "utf-8"
+            log.info(f"  HTTP {resp.status_code} {url[:80]} ({len(resp.text)} chars)")
             if resp.status_code == 200:
                 return resp
             if resp.status_code in (403, 429):
