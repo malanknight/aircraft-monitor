@@ -70,14 +70,15 @@ ALL_MODELS = TIER1_MODELS + TIER2_MODELS
 # Each feed returns up to ~25 most recent listings for that make/price range.
 
 BARNSTORMERS_RSS_FEEDS = [
-    "https://www.barnstormers.com/classified_search.php?searchcategory=1&make=Piper&price_low=0&price_high=105000&orderby=date&sort=D&format=rss",
-    "https://www.barnstormers.com/classified_search.php?searchcategory=1&make=Mooney&price_low=0&price_high=105000&orderby=date&sort=D&format=rss",
-    "https://www.barnstormers.com/classified_search.php?searchcategory=1&make=Beechcraft&price_low=0&price_high=105000&orderby=date&sort=D&format=rss",
-    "https://www.barnstormers.com/classified_search.php?searchcategory=1&make=Grumman&price_low=0&price_high=105000&orderby=date&sort=D&format=rss",
-    # Broader fallback — catches anything the make-specific feeds miss
-    "https://www.barnstormers.com/classified_search.php?searchcategory=1&model=archer&price_low=0&price_high=105000&format=rss",
-    "https://www.barnstormers.com/classified_search.php?searchcategory=1&model=arrow&price_low=0&price_high=105000&format=rss",
-    "https://www.barnstormers.com/classified_search.php?searchcategory=1&model=mooney&price_low=0&price_high=105000&format=rss",
+    # Correct RSS endpoint: ad_manager/listing.php?main=MAKE&RSS=1
+    "https://www.barnstormers.com/ad_manager/listing.php?main=Piper&RSS=1",
+    "https://www.barnstormers.com/ad_manager/listing.php?main=Mooney&RSS=1",
+    "https://www.barnstormers.com/ad_manager/listing.php?main=Beechcraft&RSS=1",
+    "https://www.barnstormers.com/ad_manager/listing.php?main=Grumman&RSS=1",
+    # Model-specific feeds for key targets
+    "https://www.barnstormers.com/ad_manager/listing.php?main=Piper&model=Archer&RSS=1",
+    "https://www.barnstormers.com/ad_manager/listing.php?main=Piper&model=Arrow&RSS=1",
+    "https://www.barnstormers.com/ad_manager/listing.php?main=Mooney&model=M20&RSS=1",
 ]
 
 # ---------------------------------------------------------------------------
