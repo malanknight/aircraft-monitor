@@ -138,8 +138,10 @@ def detect_source(from_addr: str, subject: str) -> Optional[str]:
     combined = (from_addr + " " + subject).lower()
     if "controller" in combined:
         return "controller"
-    if "trade-a-plane" in combined or "tradeaplane" in combined or "tap" in combined:
+    if "trade-a-plane" in combined or "tradeaplane" in combined:
         return "tradeaplane"
+    if "barnstormer" in combined:
+        return "barnstormers"
     return None
 
 
@@ -218,38 +220,115 @@ def parse_controller_email(subject: str, body: str) -> list:
 # Trade-A-Plane email parser
 # ---------------------------------------------------------------------------
 #
-# TAP alert email format (as of 2024-2026):
+# CONFIRMED TAP email format (March 2026):
 #
-# Subject: "Trade-A-Plane Search Alert - Piper PA-28-181"
-#    or:   "New listings match your Trade-A-Plane search"
+# Subject: "Trade-A-Plane - Daily Email Alerts"
 #
-# Body contains listing blocks like:
+# Body structure:
+#   New Trade-A-Plane Listings for MM/DD/YYYY
+#   * MAKE MODEL (header line, all caps)
+#   YEAR Make Model, location info, N-number, TT XXXX, engine info, avionics..., $XX,XXX.XX
+#   * NEXT MAKE MODEL
+#   ...
+#   [footer boilerplate]
 #
-#   1979 Piper PA-28-181 Archer II
-#   Price: $84,500
-#   TTAF: 2,910    SMOH: 540
-#   Location: Trenton, NJ
-#   [description text]
-#   https://www.trade-a-plane.com/search?listing_id=XXXXXXX
-#
-# TAP sometimes sends HTML-only emails — BeautifulSoup handles stripping.
+# Each listing is a single dense paragraph after the * header line.
+# Price appears at end of paragraph as $XX,XXX.XX
+# TSOH/SMOH appears as a number followed by TSOH or SMOH
+# Location often appears early in the paragraph ("California based", "MI based")
 
 def parse_tradeaplane_email(subject: str, body: str) -> list:
     listings = []
 
-    # TAP uses horizontal rules or blank lines between listings
-    blocks = re.split(r'\n{3,}|_{5,}|-{5,}', body)
-    urls   = re.findall(r'(https?://(?:www\.)?trade-a-plane\.com/\S+)', body)
+    # Split on "* MODEL HEADER" lines — TAP uses asterisk-prefixed headers
+    # Pattern: line starting with "* " followed by make/model in caps
+    listing_blocks = re.split(r'\n\*\s+[A-Z][A-Z0-9 \-]+\n', body)
+    header_lines   = re.findall(r'\n\*\s+([A-Z][A-Z0-9 \-]+)\n', body)
 
-    if len(blocks) <= 1:
-        blocks = [body]
+    # Also grab all TAP URLs from the full body
+    tap_urls = re.findall(r'(https?://(?:www\.)?trade-a-plane\.com/\S+)', body)
+
+    # Skip the first block (pre-listing boilerplate)
+    if len(listing_blocks) > 1:
+        blocks = listing_blocks[1:]
+    else:
+        # Fallback: no asterisk headers found, try splitting on blank lines
+        blocks = [b for b in re.split(r'\n{2,}', body) if len(b.strip()) > 50]
+        header_lines = []
+
+    for i, block in enumerate(blocks):
+        block = block.strip()
+        if not block or len(block) < 20:
+            continue
+
+        # Use the header line as additional context if available
+        header = header_lines[i] if i < len(header_lines) else ""
+        search_text = header + " " + block
+
+        model_dict = match_model(search_text)
+        if not model_dict:
+            continue
+
+        tier  = 1 if model_dict in TIER1_MODELS else 2
+        year  = extract_year(block) or extract_year(header)
+        price = extract_price(block)
+        if price and price > 110000:
+            continue
+
+        # TAP uses TT for total time and TSOH or SMOH for engine time
+        ttaf = extract_hours(block, r"(?:TT\b|TTAF|total\s*time)")
+        smoh = extract_hours(block, r"(?:TSOH|SMOH|SFRM|engine\s*time)")
+        n_num = extract_n_number(block)
+        eng   = infer_engine_type(block)
+        av    = infer_avionics(block)
+
+        # Location: TAP often says "California based", "MI based", "located in TX"
+        loc_m = re.search(r'([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)\s+based', block, re.I)
+        if not loc_m:
+            loc_m = re.search(r'located\s+in\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)', block, re.I)
+        if not loc_m:
+            loc_m = re.search(r',\s+([A-Z]{2})\s+based', block)
+        if not loc_m:
+            # Fall back to "City, ST" pattern
+            loc_m = re.search(r'([A-Z][a-z]+(?:\s[A-Z][a-z]+)*,\s*[A-Z]{2})\b', block)
+        loc_name = loc_m.group(1).strip() if loc_m else None
+
+        # Use TAP URL if available, otherwise generic
+        url = tap_urls[i] if i < len(tap_urls) else "https://www.trade-a-plane.com"
+
+        listing = build_listing("tradeaplane", url, model_dict, tier, year, price,
+                                ttaf, smoh, eng, av, block[:600], loc_name,
+                                n_number=n_num)
+        listings.append(listing)
+        log.info(f"  TAP: {year} {model_dict['model']} ${price:,}" if price else f"  TAP: {year} {model_dict['model']} (price unknown)")
+
+    return listings
+
+
+# ---------------------------------------------------------------------------
+# Barnstormers email parser
+# ---------------------------------------------------------------------------
+#
+# Barnstormers alert email format:
+#
+# Subject: "Barnstormers New Listing: 1979 Piper PA-28-181 Archer II"
+#    or:   "New listing matching your Barnstormers search"
+#
+# Body contains listing details in plain text, similar to TAP.
+# Barnstormers emails are usually one listing per email.
+
+def parse_barnstormers_email(subject: str, body: str) -> list:
+    listings = []
+
+    # Barnstormers typically sends one listing per email
+    # Try the full body as one block first
+    blocks = re.split(r'\n{3,}|_{5,}|-{5,}', body) or [body]
+    urls   = re.findall(r'(https?://(?:www\.)?barnstormers\.com/\S+)', body)
 
     for i, block in enumerate(blocks):
         if not block.strip():
             continue
-        model_dict = match_model(block)
-        if not model_dict:
-            model_dict = match_model(subject)
+        model_dict = match_model(block) or match_model(subject)
         if not model_dict:
             continue
 
@@ -259,24 +338,24 @@ def parse_tradeaplane_email(subject: str, body: str) -> list:
         if price and price > 110000:
             continue
 
-        ttaf  = extract_hours(block, r"(?:TTAF|Total\s*Time|TT\b)")
-        smoh  = extract_hours(block, r"(?:SMOH|SFRM|Engine\s*Time|Since\s*Overhaul)")
+        ttaf  = extract_hours(block, r"(?:TTAF|Total\s*Time|TT\b|Airframe)")
+        smoh  = extract_hours(block, r"(?:SMOH|Engine\s*Time|Since\s*Overhaul|SFRM)")
         n_num = extract_n_number(block)
         eng   = infer_engine_type(block)
         av    = infer_avionics(block)
 
-        loc_m = re.search(r'(?:Location|City|Located)\s*[:\-]?\s*([A-Za-z\s]+,\s*[A-Z]{2})', block, re.I)
+        loc_m = re.search(r'(?:Location|City|Located|Based)\s*[:\-]?\s*([A-Za-z\s]+,\s*[A-Z]{2})', block, re.I)
         if not loc_m:
             loc_m = re.search(r'([A-Z][a-z]+(?:\s[A-Z][a-z]+)*,\s*[A-Z]{2})\b', block)
         loc_name = loc_m.group(1).strip() if loc_m else None
 
-        url = urls[i] if i < len(urls) else "https://www.trade-a-plane.com"
+        url = urls[i] if i < len(urls) else (urls[0] if urls else "https://www.barnstormers.com")
 
-        listing = build_listing("tradeaplane", url, model_dict, tier, year, price,
+        listing = build_listing("barnstormers", url, model_dict, tier, year, price,
                                 ttaf, smoh, eng, av, block[:600].strip(), loc_name,
                                 n_number=n_num)
         listings.append(listing)
-        log.info(f"  TAP: {year} {model_dict['model']} ${price:,}" if price else f"  TAP: {year} {model_dict['model']} (price unknown)")
+        log.info(f"  Barnstormers: {year} {model_dict['model']} ${price:,}" if price else f"  Barnstormers: {year} {model_dict['model']} (price unknown)")
 
     return listings
 
@@ -335,6 +414,8 @@ def run_email_parser(output_path: str = OUTPUT_PATH):
             parsed = parse_controller_email(subject, body)
         elif source == "tradeaplane":
             parsed = parse_tradeaplane_email(subject, body)
+        elif source == "barnstormers":
+            parsed = parse_barnstormers_email(subject, body)
         else:
             parsed = []
 
