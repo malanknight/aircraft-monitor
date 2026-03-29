@@ -472,5 +472,10 @@ def run_email_parser(output_path: str = OUTPUT_PATH):
 
 
 if __name__ == "__main__":
+    import os
+    # Ensure we write to the repo root regardless of working directory
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(script_dir)
+    log.info(f"Working directory: {os.getcwd()}")
     new = run_email_parser()
     print(f"\nDone. {len(new)} new listings added.")
