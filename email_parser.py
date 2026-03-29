@@ -474,3 +474,9 @@ def run_email_parser(output_path: str = OUTPUT_PATH):
 if __name__ == "__main__":
     new = run_email_parser()
     print(f"\nDone. {len(new)} new listings added.")
+
+- name: Run email parser (Controller, Trade-A-Plane)
+        run: |
+          pwd
+          python email_parser.py
+          ls -la
