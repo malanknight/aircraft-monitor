@@ -30,16 +30,18 @@ jobs:
       - name: Write Gmail token from secret
         run: echo '${{ secrets.GMAIL_TOKEN_JSON }}' > token.json
 
-      - name: Run email parser (Controller, Trade-A-Plane, Barnstormers)
-        run: python email_parser.py
+      - name: Run email parser
+        run: |
+          pwd
+          python email_parser.py
+          ls -la listings_raw.json || echo "listings_raw.json not found"
 
       - name: Commit updated listings
         run: |
-          git config user.name  "aircraft-monitor-bot"
+          git config user.name "aircraft-monitor-bot"
           git config user.email "bot@aircraft-monitor"
           git add listings_raw.json || true
-          git add listings_needs_review.json || true
-          git diff --cached --quiet || git commit -m "chore: update listings $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git diff --cached --quiet || git commit -m "update listings $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
