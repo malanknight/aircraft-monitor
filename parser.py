@@ -62,7 +62,9 @@ def get_price(text):
 def get_hours(text, kw):
     if not text: return None
     m = re.search(rf'(\d{{3,5}})\s*(?:hrs?)?\s*{kw}|{kw}\s*[:\-]?\s*(\d{{3,5}})', text, re.I)
-    return int(m.group(1) or m.group(2)) if m else None
+    if not m: return None
+    val = m.group(1) or m.group(2)
+    return int(val) if val else None
 
 def get_n(text):
     m = re.search(r'\bN(\d[A-Z0-9]{1,4}[A-Z]?)\b', text)
