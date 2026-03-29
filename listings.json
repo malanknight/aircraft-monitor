@@ -1,0 +1,105 @@
+[
+  {
+    "id": "TRA_315c7378",
+    "source": "tradeaplane",
+    "tier": 2,
+    "model": "Piper Warrior",
+    "code": "PA-28-161",
+    "year": 2026,
+    "price": 69900,
+    "priceHistory": [
+      {
+        "price": 69900,
+        "date": "2026-03-29"
+      }
+    ],
+    "ttaf": 3355,
+    "smoh": null,
+    "engineType": "Field Overhaul",
+    "annualDate": null,
+    "paintCondition": null,
+    "interiorCondition": null,
+    "locationName": null,
+    "distanceFromBase": 9999,
+    "noAccident": null,
+    "nNumber": "56659",
+    "avionics": {
+      "vacuum": null,
+      "gtn": null,
+      "autopilot": false,
+      "engMonitor": false,
+      "g5": false,
+      "ifr": true
+    },
+    "notes": "You have chosen to receive email notification of new listings for: PIPER ARCHER 30-115k Notice: Accounts with six months of non-activity will have their email alerts disabled. New Trade-A-Plane Listings for 3/24/2026 PIPER CHEROKEE 180 1972 Piper Cherokee 180, 3355TT, 1384 SMOH, Dual MK12D+ navcoms PIPER WARRIOR N56659 - This Piper Warrior provides a great platform for someone looking to get their start in aviation but wants to set up the airplane the way they want. The panel offers a blank canvas for the next owner customize the perfect trainer. Offered at a very reasonable $69,900, the airpl",
+    "dateFound": "2026-03-29",
+    "isDuplicate": false
+  },
+  {
+    "id": "TRA_315c7378",
+    "source": "tradeaplane",
+    "tier": 1,
+    "model": "Mooney M20F",
+    "code": "M20F",
+    "year": 2026,
+    "price": null,
+    "priceHistory": [],
+    "ttaf": 219,
+    "smoh": null,
+    "engineType": null,
+    "annualDate": null,
+    "paintCondition": null,
+    "interiorCondition": null,
+    "locationName": null,
+    "distanceFromBase": 9999,
+    "noAccident": null,
+    "nNumber": "3563N",
+    "avionics": {
+      "vacuum": null,
+      "gtn": null,
+      "autopilot": true,
+      "engMonitor": true,
+      "g5": false,
+      "ifr": true
+    },
+    "notes": "You have chosen to receive email notification of new listings for: Claude Setup Notice: Accounts with six months of non-activity will have their email alerts disabled. New Trade-A-Plane Listings for 3/23/2026 MOONEY M20F EXEC 21 Aircraft \r\n\r\n1968 Mooney, Executive 21 M20F\r\n\r\nN3563N   SN: 680097\r\n\r\n4629 hrs - Total Time \r\n\r\nLast Annual, December 2025\r\n\r\nComplete Aircraft Logbooks\r\n\r\n\r\n\r\nEngine - Lycoming IO-360-A1A  SN: L-4389-51A\r\n\r\n3,219 TT  \r\n\r\n1,952 - SMOH in 1994, 2000 hr TBO \r\n\r\n\r\n\r\nPropeller, Two Blade - Hartzell Propeller HC-C2YK-1BF  SN: F7666A\r\n\r\nUNK - TT \r\n\r\n602 hrs - SOH in 2006\r\n\r\n",
+    "dateFound": "2026-03-29",
+    "isDuplicate": false
+  },
+  {
+    "id": "TRA_315c7378",
+    "source": "tradeaplane",
+    "tier": 2,
+    "model": "Beech Musketeer",
+    "code": "A23",
+    "year": 2026,
+    "price": 94000,
+    "priceHistory": [
+      {
+        "price": 94000,
+        "date": "2026-03-29"
+      }
+    ],
+    "ttaf": null,
+    "smoh": 652,
+    "engineType": null,
+    "annualDate": null,
+    "paintCondition": null,
+    "interiorCondition": null,
+    "locationName": "California",
+    "distanceFromBase": 9999,
+    "noAccident": null,
+    "nNumber": "5101M",
+    "avionics": {
+      "vacuum": null,
+      "gtn": null,
+      "autopilot": true,
+      "engMonitor": true,
+      "g5": true,
+      "ifr": true
+    },
+    "notes": "You have chosen to receive email notification of new listings for: Claude Setup Notice: Accounts with six months of non-activity will have their email alerts disabled. New Trade-A-Plane Listings for 3/21/2026 BEECHCRAFT C23 SUNDOWNER 180 1978 Beechcraft C-23 Sundowner, California based, hanger kept, N5101M, S/N M-2033, TT 5541, Lycoming O-360-A4K, 180 HP, 652 TSOH, Powerflow Exhaust System, King KMA 20 audio panel, Dual King KX170B Nav/comm, King KT78A Mode C transponder, Uavionix ADSB out tail beacon, Hobbs meter, OAT gauge, Electric trim, Avionics master, Remote ELT arming panel, 4 place int",
+    "dateFound": "2026-03-29",
+    "isDuplicate": false
+  }
+]
