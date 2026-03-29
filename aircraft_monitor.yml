@@ -33,12 +33,11 @@ jobs:
       - name: Run email parser (Controller, Trade-A-Plane, Barnstormers)
         run: python email_parser.py
 
-      - name: Commit updated listings
+- name: Commit updated listings
         run: |
           git config user.name  "aircraft-monitor-bot"
           git config user.email "bot@aircraft-monitor"
-          git add listings_raw.json || true
-          git add listings_needs_review.json || true
+          git add -f listings_raw.json || true
           git diff --cached --quiet || git commit -m "chore: update listings $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push
         env:
