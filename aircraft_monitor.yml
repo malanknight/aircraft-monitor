@@ -29,15 +29,10 @@ jobs:
           python email_parser.py
           ls -la listings_raw.json || echo "FILE NOT FOUND"
       - name: Commit updated listings
-        run: |
-          git config user.name "aircraft-monitor-bot"
-          git config user.email "bot@aircraft-monitor"
-          cp listings_raw.json listings_raw.json.bak || true
-          git add -f listings_raw.json
-          git commit -m "update listings $(date -u '+%Y-%m-%d %H:%M UTC')" || echo "nothing to commit"
-          git push || echo "nothing to push"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "update listings"
+          file_pattern: "listings_raw.json"
       - name: Upload listings as artifact
         uses: actions/upload-artifact@v4
         with:
