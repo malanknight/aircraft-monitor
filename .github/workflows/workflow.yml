@@ -1,0 +1,42 @@
+name: Aircraft Monitor
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+    - cron: "0 12 * * *"
+    - cron: "0 18 * * *"
+    - cron: "0 23 * * *"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: pip install beautifulsoup4 google-auth google-auth-oauthlib google-api-python-client
+
+      - name: Write token
+        run: echo '${{ secrets.GMAIL_TOKEN_JSON }}' > token.json
+
+      - name: Parse emails
+        run: python parser.py
+
+      - name: Save listings
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@bot.com"
+          git add listings.json
+          git status
+          git commit -m "listings $(date -u +%Y%m%d-%H%M)" || echo "no change"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
