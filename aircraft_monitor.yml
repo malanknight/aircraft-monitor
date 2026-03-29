@@ -1,5 +1,4 @@
 name: Aircraft Monitor
-
 on:
   schedule:
     - cron: "0 6 * * *"
@@ -7,35 +6,28 @@ on:
     - cron: "0 18 * * *"
     - cron: "0 23 * * *"
   workflow_dispatch:
-
 jobs:
   parse-emails:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
-
       - name: Install dependencies
         run: pip install requests beautifulsoup4 google-auth google-auth-oauthlib google-api-python-client
-
       - name: Write Gmail token from secret
         run: echo '${{ secrets.GMAIL_TOKEN_JSON }}' > token.json
-
       - name: Run email parser
         run: |
           pwd
           python email_parser.py
-          ls -la listings_raw.json || echo "listings_raw.json not found"
-
+          ls -la listings_raw.json || echo "FILE NOT FOUND"
       - name: Commit updated listings
         run: |
           git config user.name "aircraft-monitor-bot"
@@ -45,7 +37,6 @@ jobs:
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Upload listings as artifact
         uses: actions/upload-artifact@v4
         with:
